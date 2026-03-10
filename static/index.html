@@ -27,11 +27,7 @@
       max-width: 520px;
     }
 
-    h1 {
-      font-size: 1.6rem;
-      font-weight: 700;
-      margin-bottom: 6px;
-    }
+    h1 { font-size: 1.6rem; font-weight: 700; margin-bottom: 6px; }
 
     .subtitle {
       color: #888;
@@ -60,7 +56,49 @@
 
     input:focus { border-color: #555; }
 
-    button {
+    /* Mode toggle */
+    .mode-toggle {
+      display: flex;
+      margin-top: 16px;
+      background: #111;
+      border: 1px solid #2a2a2a;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .mode-btn {
+      flex: 1;
+      padding: 10px;
+      background: transparent;
+      color: #666;
+      border: none;
+      border-radius: 0;
+      margin: 0;
+      font-size: 0.88rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    .mode-btn:hover { background: #1a1a1a; color: #aaa; }
+
+    .mode-btn.active {
+      background: #2a2a2a;
+      color: #f0f0f0;
+      font-weight: 600;
+    }
+
+    .mode-btn:disabled { cursor: not-allowed; opacity: 0.4; }
+
+    .mode-hint {
+      font-size: 0.78rem;
+      color: #555;
+      margin-top: 8px;
+      min-height: 16px;
+    }
+
+    /* Submit button */
+    .submit-btn {
       margin-top: 14px;
       width: 100%;
       padding: 13px;
@@ -74,9 +112,10 @@
       transition: background 0.2s;
     }
 
-    button:hover { background: #d4d4d4; }
-    button:disabled { background: #333; color: #666; cursor: not-allowed; }
+    .submit-btn:hover { background: #d4d4d4; }
+    .submit-btn:disabled { background: #333; color: #666; cursor: not-allowed; }
 
+    /* Status box */
     .status-box {
       margin-top: 24px;
       padding: 16px;
@@ -103,7 +142,7 @@
       flex-shrink: 0;
     }
 
-    .dot.queued, .dot.in-progress { background: #facc15; animation: pulse 1.2s infinite; }
+    .dot.in-progress { background: #facc15; animation: pulse 1.2s infinite; }
     .dot.done { background: #4ade80; }
     .dot.error { background: #f87171; }
 
@@ -118,26 +157,7 @@
       color: #555;
       font-size: 0.78rem;
       word-break: break-all;
-    }
-
-    .result-link {
-      margin-top: 10px;
-      padding-top: 10px;
-      border-top: 1px solid #2a2a2a;
-    }
-
-    .result-link a {
-      color: #60a5fa;
-      text-decoration: none;
-      font-weight: 500;
-    }
-
-    .result-link a:hover { text-decoration: underline; }
-
-    .error-msg {
-      margin-top: 10px;
-      color: #f87171;
-      word-break: break-all;
+      margin-bottom: 4px;
     }
 
     .steps {
@@ -157,8 +177,36 @@
 
     .step.active { color: #f0f0f0; }
     .step.done-step { color: #4ade80; }
-
     .step-icon { font-size: 0.8rem; width: 14px; text-align: center; }
+
+    /* Result area */
+    .result-area {
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid #2a2a2a;
+      display: none;
+    }
+
+    .result-area a {
+      color: #60a5fa;
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    .result-area a:hover { text-decoration: underline; }
+
+    .preview-video {
+      margin-top: 10px;
+      width: 100%;
+      border-radius: 8px;
+      background: #000;
+    }
+
+    .error-msg {
+      margin-top: 10px;
+      color: #f87171;
+      word-break: break-all;
+    }
   </style>
 </head>
 <body>
@@ -168,7 +216,14 @@
 
     <label for="url">Instagram Reel URL</label>
     <input id="url" type="text" placeholder="https://www.instagram.com/reel/..." />
-    <button id="btn" onclick="startJob()">Process Reel</button>
+
+    <div class="mode-toggle">
+      <button class="mode-btn active" id="btn-preview" onclick="setMode('preview')">Preview only</button>
+      <button class="mode-btn" id="btn-upload" onclick="setMode('upload')">Preview + Upload</button>
+    </div>
+    <p class="mode-hint" id="mode-hint">Renders the video so you can watch it — no posting.</p>
+
+    <button class="submit-btn" id="btn" onclick="startJob()">Process Reel</button>
 
     <div class="status-box" id="status-box">
       <div class="status-row">
@@ -177,15 +232,15 @@
       </div>
       <div class="job-id" id="job-id"></div>
       <div class="steps" id="steps"></div>
-      <div class="result-link" id="result-link" style="display:none">
-        Posted: <a id="result-url" href="#" target="_blank"></a>
-      </div>
+      <div class="result-area" id="result-area"></div>
       <div class="error-msg" id="error-msg" style="display:none"></div>
     </div>
   </div>
 
   <script>
-    const STEPS = [
+    let mode = "preview"; // "preview" | "upload"
+
+    const STEPS_UPLOAD  = [
       { key: "downloading",       label: "Downloading reel" },
       { key: "fetching_comments", label: "Fetching comments" },
       { key: "rendering",         label: "Rendering video" },
@@ -193,28 +248,50 @@
       { key: "done",              label: "Done" },
     ];
 
+    const STEPS_PREVIEW = [
+      { key: "downloading",       label: "Downloading reel" },
+      { key: "fetching_comments", label: "Fetching comments" },
+      { key: "rendering",         label: "Rendering video" },
+      { key: "done",              label: "Done" },
+    ];
+
+    const HINTS = {
+      preview: "Renders the video so you can watch it — no posting.",
+      upload:  "Renders the video and posts it to Instagram.",
+    };
+
     let pollTimer = null;
+
+    function setMode(m) {
+      mode = m;
+      document.getElementById("btn-preview").classList.toggle("active", m === "preview");
+      document.getElementById("btn-upload").classList.toggle("active", m === "upload");
+      document.getElementById("mode-hint").textContent = HINTS[m];
+    }
 
     async function startJob() {
       const url = document.getElementById("url").value.trim();
       if (!url) return;
 
       document.getElementById("btn").disabled = true;
+      document.getElementById("btn-preview").disabled = true;
+      document.getElementById("btn-upload").disabled = true;
       document.getElementById("status-box").classList.add("visible");
-      document.getElementById("result-link").style.display = "none";
+      document.getElementById("result-area").style.display = "none";
+      document.getElementById("result-area").innerHTML = "";
       document.getElementById("error-msg").style.display = "none";
       setStatus("queued");
 
       const res = await fetch("/process", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({ url, post: mode === "upload" }),
       });
 
       if (!res.ok) {
         setStatus("error");
         showError("Failed to start job.");
-        document.getElementById("btn").disabled = false;
+        resetButtons();
         return;
       }
 
@@ -228,43 +305,52 @@
       if (!res.ok) return;
       const data = await res.json();
 
-      setStatus(data.status);
+      setStatus(data.status, data.post);
 
       if (data.status === "done") {
         clearInterval(pollTimer);
-        document.getElementById("btn").disabled = false;
-        if (data.result) {
-          const el = document.getElementById("result-link");
-          const a = document.getElementById("result-url");
-          a.href = data.result;
-          a.textContent = data.result;
-          el.style.display = "block";
-        }
+        resetButtons();
+        showResult(data.result, data.post);
       } else if (data.status === "error") {
         clearInterval(pollTimer);
-        document.getElementById("btn").disabled = false;
+        resetButtons();
         showError(data.error || "Unknown error");
       }
     }
 
-    function setStatus(status) {
+    function showResult(result, isUpload) {
+      const area = document.getElementById("result-area");
+      area.style.display = "block";
+      if (isUpload) {
+        area.innerHTML = `Posted: <a href="${result}" target="_blank">${result}</a>`;
+      } else {
+        area.innerHTML = `
+          <div style="margin-bottom:8px;color:#aaa;">Preview ready:</div>
+          <video class="preview-video" controls playsinline>
+            <source src="${result}" type="video/mp4" />
+          </video>`;
+      }
+    }
+
+    function setStatus(status, isUpload) {
       const dot = document.getElementById("dot");
       const label = document.getElementById("status-label");
 
-      label.textContent = status.replace("_", " ");
+      label.textContent = status.replace(/_/g, " ");
       dot.className = "dot";
 
       if (status === "done") dot.classList.add("done");
       else if (status === "error") dot.classList.add("error");
       else dot.classList.add("in-progress");
 
-      renderSteps(status);
+      renderSteps(status, isUpload);
     }
 
-    function renderSteps(currentStatus) {
+    function renderSteps(currentStatus, isUpload) {
+      const steps = (isUpload || mode === "upload") ? STEPS_UPLOAD : STEPS_PREVIEW;
       const container = document.getElementById("steps");
-      const currentIdx = STEPS.findIndex(s => s.key === currentStatus);
-      container.innerHTML = STEPS.map((step, i) => {
+      const currentIdx = steps.findIndex(s => s.key === currentStatus);
+      container.innerHTML = steps.map((step, i) => {
         let cls = "step";
         let icon = "○";
         if (i < currentIdx || currentStatus === "done") { cls += " done-step"; icon = "✓"; }
@@ -277,6 +363,12 @@
       const el = document.getElementById("error-msg");
       el.textContent = "Error: " + msg;
       el.style.display = "block";
+    }
+
+    function resetButtons() {
+      document.getElementById("btn").disabled = false;
+      document.getElementById("btn-preview").disabled = false;
+      document.getElementById("btn-upload").disabled = false;
     }
   </script>
 </body>

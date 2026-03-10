@@ -22,6 +22,7 @@ from video.editor import compose_reel
 
 app = FastAPI(title="liked_loud")
 app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/output", StaticFiles(directory="output"), name="output")
 
 # In-memory job store: { job_id: { status, result, error } }
 jobs: dict[str, dict] = {}
@@ -34,6 +35,7 @@ def index():
 
 class ProcessRequest(BaseModel):
     url: str
+    post: bool = True
 
 
 def build_caption(hashtags: list[str], original_username: str) -> str:
@@ -41,7 +43,7 @@ def build_caption(hashtags: list[str], original_username: str) -> str:
     return f"Top comments 😂\n\n{tags}\n\nCredit: @{original_username}"
 
 
-def run_pipeline(job_id: str, url: str) -> None:
+def run_pipeline(job_id: str, url: str, post: bool) -> None:
     try:
         jobs[job_id]["status"] = "downloading"
         scraper = get_client(IG_SCRAPER_USERNAME, IG_SCRAPER_PASSWORD)
@@ -53,13 +55,18 @@ def run_pipeline(job_id: str, url: str) -> None:
         jobs[job_id]["status"] = "rendering"
         out_video = compose_reel(reel["video_path"], top_comments, reel["original_username"])
 
-        jobs[job_id]["status"] = "posting"
-        caption = build_caption(reel["hashtags"], reel["original_username"])
-        poster = get_client(IG_POSTER_USERNAME, IG_POSTER_PASSWORD)
-        new_url = post_reel(out_video, caption, poster)
+        if post:
+            jobs[job_id]["status"] = "posting"
+            caption = build_caption(reel["hashtags"], reel["original_username"])
+            poster = get_client(IG_POSTER_USERNAME, IG_POSTER_PASSWORD)
+            new_url = post_reel(out_video, caption, poster)
+            jobs[job_id]["result"] = new_url
+        else:
+            # Return a URL to the rendered video served from /output
+            filename = out_video.split("/")[-1]
+            jobs[job_id]["result"] = f"/output/{filename}"
 
         jobs[job_id]["status"] = "done"
-        jobs[job_id]["result"] = new_url
     except Exception as e:
         jobs[job_id]["status"] = "error"
         jobs[job_id]["error"] = str(e)
@@ -73,8 +80,8 @@ def health():
 @app.post("/process")
 def process(req: ProcessRequest, background_tasks: BackgroundTasks):
     job_id = str(uuid.uuid4())
-    jobs[job_id] = {"status": "queued", "result": None, "error": None}
-    background_tasks.add_task(run_pipeline, job_id, req.url)
+    jobs[job_id] = {"status": "queued", "result": None, "error": None, "post": req.post}
+    background_tasks.add_task(run_pipeline, job_id, req.url, req.post)
     return {"job_id": job_id}
 
 
