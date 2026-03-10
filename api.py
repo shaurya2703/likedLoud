@@ -4,6 +4,8 @@ liked_loud — Web API
 
 import uuid
 from fastapi import FastAPI, BackgroundTasks, HTTPException
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from config import (
@@ -19,9 +21,15 @@ from instagram.poster import post_reel
 from video.editor import compose_reel
 
 app = FastAPI(title="liked_loud")
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # In-memory job store: { job_id: { status, result, error } }
 jobs: dict[str, dict] = {}
+
+
+@app.get("/")
+def index():
+    return FileResponse("static/index.html")
 
 
 class ProcessRequest(BaseModel):
