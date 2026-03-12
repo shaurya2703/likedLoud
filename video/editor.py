@@ -287,6 +287,11 @@ def compose_reel(
     print(f"[editor] Loading video: {video_path}")
     clip = VideoFileClip(video_path)
     w, h = clip.size
+    # H.264 requires dimensions divisible by 2
+    w = w if w % 2 == 0 else w - 1
+    h = h if h % 2 == 0 else h - 1
+    if (w, h) != clip.size:
+        clip = clip.resize((w, h))
     duration = clip.duration
     print(f"[editor] Video: {w}x{h}, {duration:.1f}s")
 
